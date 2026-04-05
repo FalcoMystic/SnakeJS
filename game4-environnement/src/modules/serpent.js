@@ -1,0 +1,9 @@
+class Serpent {
+    constructor() {
+
+    }
+
+    draw (){
+
+    }
+}
