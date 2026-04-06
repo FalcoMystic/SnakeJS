@@ -1,15 +1,13 @@
 /** @Module Module Serpent */
 
 import Anneau from './anneau';
-import { getRandomInt } from '../utils';
 
 export default class Serpent {
-	constructor(length, i, j, direction, ctx, terrain, headColor = '#898AC4', bodyColor = '#C0C9EE', tailColor = '#FFF2E0') {
+	constructor(length, i, j, direction, ctx, terrain, headColor, bodyColor , tailColor) {
 		this.length = length;
 		this.direction = direction;
 		this.ctx = ctx;
 		this.terrain = terrain;
-		this.headColor = headColor;
 		this.bodyColor = bodyColor;
 		this.tailColor = tailColor;
 		this.anneaux = [];

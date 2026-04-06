@@ -16,32 +16,31 @@ export default class Terrain {
 	}
 
 	draw() {
-		// https://developer.mozilla.org/fr/docs/Web/API/CanvasRenderingContext2D/fillRect -> Création du rectangle
+		// Couleurs de chaque type de cellule
+		const colors = {
+			0: '#CBE2B5',  // Vide (vert)
+			1: '#969696',  // Rocher (gris)
+			2: '#bd2323',  // Pomme (rouge)
+			4: '#ffa9ff',  // Portail rose (TimeAttack seulement)
+			5: '#94ffff',  // Portail bleu (TimeAttack seulement)
+			6: '#ffff93',  // Portail jaune (TimeAttack seulement)
+			7: '#A0714F'   // Barrière (TimeAttack seulement)
+		};
+
 		for (let i = 0; i < this.length; i++) {
 			for (let j = 0; j < this.height; j++) {
-				// Choisis une couleur selon this.sol[i][j] si besoin
-				// Sol du terrain : 0 (libre), 1 (rochers), 2 (pomme), 3 (collision serpent - non affiché), 4-6 (tunnels), 7 (barrières)
-				if (this.sol[i][j] == 0) {
-					this.ctx.fillStyle = '#CBE2B5';
-				} else if (this.sol[i][j] == 1) {
-					this.ctx.fillStyle = '#969696';
-				} else if (this.sol[i][j] == 2) {
-					this.ctx.fillStyle = '#bd2323';
-				} else if (this.sol[i][j] == 4) {
-					this.ctx.fillStyle = '#ffa9ff';
-				} else if (this.sol[i][j] == 5) {
-					this.ctx.fillStyle = '#94ffff';
-				} else if (this.sol[i][j] == 6) {
-					this.ctx.fillStyle = '#ffff93';
-				} else if (this.sol[i][j] == 7) {
-					this.ctx.fillStyle = '#A0714F';
-				}
+				// Obtenir la couleur selon le code de la cellule
+				const cellCode = this.sol[i][j];
+				this.ctx.fillStyle = colors[cellCode] || '#CBE2B5';  // Gris par défaut
+
 				this.ctx.fillRect(
 					i * this.cellSize,
 					j * this.cellSize,
 					this.cellSize,
 					this.cellSize,
 				);
+
+				// Cadrillage du terrain
 				this.ctx.strokeStyle = '#3a3a3a';
 				this.ctx.lineWidth = 1;
 				this.ctx.strokeRect(

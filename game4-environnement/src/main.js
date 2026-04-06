@@ -6,68 +6,88 @@ import TunnelManager from './modules/tunnels';
 import TimeAttackManager from './modules/timeAttack';
 import { getRandomInt } from './utils';
 
+// Initialiser le canvas et son contexte de dessin
 let canvas = document.getElementById('terrain');
 let ctx = canvas.getContext('2d');
 
-// Variables globales
-let gameMode = null;
-let animationTimer = 0;
-let starttime = 0;
-let totalScore = 0;
-let terrain = null;
-let apples = [];
-let serpent1 = null;
-let applesEaten = 0;
+// === CONSTANTES ===
+// Configuration du FPS et de la taille du terrain
+const TERRAIN_SIZE = 20;
+const MAX_FPS = 10;
+const FRAME_INTERVAL = 1000 / MAX_FPS;
 
-// Managers
-let botManager = null;
-let tunnelManager = null;
-let timeAttackManager = null;
+// Codes des cellules du terrain (chaque cellule peut contenir un type d'objet)
+const EMPTY = 0;         // Bloc vide (vert)
+const ROCK = 1;          // Rocher = obstacle (collision)
+const APPLE = 2;         // Pomme = objectif à manger
+const SNAKE_BODY = 3;    // Corps du serpent = collision
+const PORTAL = [4, 5, 6]; // Portails = téléportation (codes 4=rose, 5=bleu, 6=jaune)
+const BARRIER = 7;       // Barrière = obstacle séparant les sections (collision)
 
-const maxfps = 10;
-const interval = 1000 / maxfps;
+// === VARIABLES GLOBALES ===
+// État du jeu
+let gameMode = null;           // Mode actuel : 'normal', 'tunnels', ou 'timeAttack'
+let animationTimer = 0;        // ID de la frame d'animation pour pouvoir l'arrêter
+let starttime = 0;             // Timestamp de démarrage de la frame (pour FPS stable)
+let totalScore = 0;            // Score total (nombre de pommes mangées depuis le début)
+let terrain = null;            // Instance du terrain (grille 20x20)
+let serpent1 = null;           // Instance du serpent du joueur
+let applesEaten = 0;           // Compteur de pommes mangées dans cette vague
 
-// Fonction pour générer les rochers
+// Managers = classes qui gèrent des systèmes spécifiques
+let botManager = null;         // Gère les serpents autonomes (IA)
+let tunnelManager = null;      // Gère les portails et les barrières
+let timeAttackManager = null;  // Gère le timer et l'objectif de pommes
+
+// === FONCTIONS UTILITAIRES ===
+
+// Générer les rochers aléatoires sur le terrain
+// Crée des obstacles immobiles pour compliquer le jeu
 function generateRocks(count = 10) {
     for (let i = 0; i < count; i++) {
-        let randI = getRandomInt(20);
-        let randJ = getRandomInt(20);
-        terrain.write(randI, randJ, 1);
+        let randI = getRandomInt(TERRAIN_SIZE);
+        let randJ = getRandomInt(TERRAIN_SIZE);
+        terrain.write(randI, randJ, ROCK);  // Écrire le code 1 (rocher)
     }
 }
 
-// Fonction pour générer les pommes
+// Générer les pommes aléatoires sur le terrain
+// Cherche à placer chaque pomme sur un bloc VIDE seulement
 function generateApples(count = 3) {
     const applesArray = [];
+
     for (let i = 0; i < count; i++) {
-        let randI = getRandomInt(20);
-        let randJ = getRandomInt(20);
-        while (terrain.read(randI, randJ) !== 0) {
-            randI = getRandomInt(20);
-            randJ = getRandomInt(20);
+        let randI = getRandomInt(TERRAIN_SIZE);
+        let randJ = getRandomInt(TERRAIN_SIZE);
+
+        // Boucle jusqu'à trouver une cellule vide (code 0)
+        // Cela évite de placer une pomme sur un rocher, portail, ou barrière
+        while (terrain.read(randI, randJ) !== EMPTY) {
+            randI = getRandomInt(TERRAIN_SIZE);
+            randJ = getRandomInt(TERRAIN_SIZE);
         }
-        terrain.write(randI, randJ, 2);
+
+        terrain.write(randI, randJ, APPLE);  // Écrire le code 2 (pomme)
         applesArray.push({ i: randI, j: randJ });
     }
+
     return applesArray;
 }
 
-// Fonction pour initialiser la partie selon le mode
+// === INITIALISATION DU JEU ===
+
+// Initialiser une partie selon le mode choisi
 function initGame(mode) {
     gameMode = mode;
 
-    // Cacher le menu et afficher l'écran de jeu
+    // Afficher l'écran de jeu
     document.getElementById('menu').style.display = 'none';
     document.getElementById('gameScreen').style.display = 'block';
 
     // Afficher/cacher les éléments selon le mode
-    if (mode === 'timeAttack') {
-        document.getElementById('timer').style.display = 'block';
-        document.getElementById('collectibles').style.display = 'block';
-    } else {
-        document.getElementById('timer').style.display = 'none';
-        document.getElementById('collectibles').style.display = 'none';
-    }
+    const showTimer = (mode === 'timeAttack');
+    document.getElementById('timer').style.display = showTimer ? 'block' : 'none';
+    document.getElementById('collectibles').style.display = showTimer ? 'block' : 'none';
 
     // Réinitialiser les variables
     animationTimer = 0;
@@ -80,71 +100,71 @@ function initGame(mode) {
     document.getElementById('gameOver').style.display = 'none';
     document.getElementById('buttonContainer').style.display = 'none';
 
-    // Générer le terrain
-    terrain = new Terrain(20, 20, ctx);
+    // Créer et dessiner le terrain
+    terrain = new Terrain(TERRAIN_SIZE, TERRAIN_SIZE, ctx);
     terrain.draw();
 
-    // Générer rochers
+    // Générer les obstacles
     generateRocks(10);
 
     // Initialiser les managers
     botManager = new BotManager(ctx, terrain);
-
-    // Ne créer les bots que si ce n'est pas le mode Tunnels
-    if (mode !== 'tunnels') {
-        botManager.createBots();
-    }
-
     tunnelManager = new TunnelManager(terrain);
     timeAttackManager = new TimeAttackManager();
 
-    // Générer tunnels si mode Tunnels (AVANT les pommes)
+    // Générer les éléments du mode Tunnels AVANT les pommes
     if (mode === 'tunnels') {
         tunnelManager.generate();
+    } else {
+        // Créer les bots pour les autres modes
+        botManager.createBots();
     }
 
-    // Générer pommes selon le mode
+    // Générer les pommes
     if (mode === 'timeAttack') {
-        apples = generateApples(10);
+        generateApples(10);
         timeAttackManager.init();
     } else {
-        apples = generateApples(3);
+        generateApples(3);
     }
 
-    // Créer le serpent joueur
+    // Créer le serpent du joueur
     serpent1 = new Serpent(3, 5, 3, 1, ctx, terrain, '#4A90E2', '#7CB3FF', '#B3D9FF');
 
-    // Ajouter contrôle clavier
+    // Démarrer le jeu
     setupKeyboardControls();
-
-    // Commencer l'animation
     startRAF();
 }
 
-// Fonction pour configurer les contrôles clavier
+// === CONTRÔLES ===
+
+// Configurer l'écoute des touches clavier
 function setupKeyboardControls() {
     document.removeEventListener('keydown', handleKeydown);
     document.addEventListener('keydown', handleKeydown);
 }
 
+// Gérer les touches de flèches
 function handleKeydown(event) {
     switch (event.key) {
         case 'ArrowUp':
-            if (serpent1.direction !== 2) serpent1.direction = 0;
+            if (serpent1.direction !== 2) serpent1.direction = 0;  // Haut
             break;
         case 'ArrowRight':
-            if (serpent1.direction !== 3) serpent1.direction = 1;
+            if (serpent1.direction !== 3) serpent1.direction = 1;  // Droite
             break;
         case 'ArrowDown':
-            if (serpent1.direction !== 0) serpent1.direction = 2;
+            if (serpent1.direction !== 0) serpent1.direction = 2;  // Bas
             break;
         case 'ArrowLeft':
-            if (serpent1.direction !== 1) serpent1.direction = 3;
+            if (serpent1.direction !== 1) serpent1.direction = 3;  // Gauche
             break;
     }
 }
 
-// Event listeners du menu
+// === EVENT LISTENERS ===
+
+// Boutons du menu
 document.getElementById('modeNormal').addEventListener('click', () => initGame('normal'));
 document.getElementById('modeTunnels').addEventListener('click', () => initGame('tunnels'));
 document.getElementById('modeTimeAttack').addEventListener('click', () => initGame('timeAttack'));
@@ -162,114 +182,125 @@ document.getElementById('menuBtn').addEventListener('click', () => {
     document.getElementById('menu').style.display = 'block';
 });
 
-// Fonction pour démarrer l'animation
+// === BOUCLE D'ANIMATION ===
+
+// Fonction pour démarrer la boucle d'animation
 function startRAF(timestamp = 0) {
     animationTimer = requestAnimationFrame(startRAF);
+
     if (starttime === 0) starttime = timestamp;
+
     let delta = timestamp - starttime;
-    if (delta >= interval) {
+    if (delta >= FRAME_INTERVAL) {
         anim();
-        starttime = timestamp - (delta % interval);
+        starttime = timestamp - (delta % FRAME_INTERVAL);
     }
 }
 
+// Mettre à jour et dessiner chaque frame
 function anim() {
-    // Mettre à jour le timer pour Time Attack
+    // === ÉTAPE 1 : Mettre à jour le Time Attack ===
     if (gameMode === 'timeAttack') {
+        // Calculer le temps restant et mettre à jour l'affichage
         timeAttackManager.update();
         document.getElementById('timer').textContent = `Temps: ${timeAttackManager.getTimeRemaining()}`;
         document.getElementById('collectibles').textContent = `Collectibles: ${timeAttackManager.getAppleCount()}/${timeAttackManager.getTargetApples()}`;
 
         // Vérifier si le temps est écoulé
         if (timeAttackManager.isTimeUp()) {
-            if (timeAttackManager.isVictory()) {
-                document.getElementById('gameOver').textContent = 'Victoire !';
-            } else {
-                document.getElementById('gameOver').textContent = 'Temps écoulé !';
-            }
-            document.getElementById('gameOver').style.display = 'block';
-            document.getElementById('buttonContainer').style.display = 'flex';
-            cancelAnimationFrame(animationTimer);
-            return;
+            const message = timeAttackManager.isVictory() ? 'Victoire !' : 'Temps écoulé !';
+            document.getElementById('gameOver').textContent = message;
+            endGame();
+            return;  // Arrêter la boucle
         }
     }
 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    terrain.draw();
+    // === ÉTAPE 2 : Redessiner le terrain ===
+    ctx.fillRect(0, 0, canvas.width, canvas.height);  // Effacer l'écran
+    terrain.draw();  // Redessiner toutes les cellules
 
-    // Vérifier ce que la tête du joueur va toucher
+    // === ÉTAPE 3 : Vérifier les collisions et déplacer le serpent ===
+    // Lire la cellule vers laquelle va se diriger le serpent
     const nextCell = serpent1.anneaux[0].read(serpent1.direction);
+    // Précompiler les collisions pour éviter les vérifications redondantes
+    const isCollision = nextCell === ROCK || nextCell === SNAKE_BODY || nextCell === BARRIER;
 
-    // Vérifier si on rentre dans un tunnel (Mode Tunnels)
     if (gameMode === 'tunnels') {
+        // === MODE TUNNELS : Gestion des portails ===
         if (tunnelManager.checkTeleport(serpent1.anneaux[0], serpent1.direction)) {
-            // Téléporté - ne rien faire, le serpent se déplacera normalement à la prochaine itération
-        } else if (nextCell === 2) {
+            // Le serpent rentre dans un portail et est téléporté
+            // Au prochain appel de anim(), il bougera normalement depuis sa nouvelle position
+        } else if (nextCell === APPLE) {
             handleAppleCollision();
-        } else if (nextCell === 1 || nextCell === 3 || nextCell === 7 || nextCell === undefined) {
-            handleGameOver();
+        } else if (isCollision || nextCell === undefined) {
+            endGame();
         } else {
-            serpent1.move();
+            serpent1.move();  // Bouger le serpent normalement
         }
-    } else if (nextCell === 2) {
-        handleAppleCollision();
-    } else if (nextCell === 1 || nextCell === 3 || nextCell === 7 || nextCell === undefined) {
-        handleGameOver();
     } else {
-        serpent1.move();
+        // === MODE NORMAL ET TIME ATTACK ===
+        if (nextCell === APPLE) {
+            handleAppleCollision();
+        } else if (isCollision || nextCell === undefined) {
+            endGame();
+        } else {
+            serpent1.move();  // Bouger le serpent normalement
+        }
     }
 
-    serpent1.draw();
+    // === ÉTAPE 4 : Afficher les objets ===
+    serpent1.draw();  // Redessiner le serpent à sa nouvelle position
 
     // Mettre à jour les bots (sauf en mode Tunnels)
     if (gameMode !== 'tunnels') {
-        botManager.update();
+        botManager.update();  // Mettre les bots en mouvement avec IA
     }
 }
 
-// Fonction pour gérer la collision avec une pomme
+// === GESTION DES COLLISIONS ===
+
+// Quand le serpent mange une pomme : croître et générer une nouvelle pomme
 function handleAppleCollision() {
     const headI = serpent1.anneaux[0].i;
     const headJ = serpent1.anneaux[0].j;
 
+    // Avancer le serpent et ajouter un anneau (croissance)
     serpent1.moveForward();
     serpent1.extend();
 
-    // Effacer la pomme mangée
-    terrain.write(headI, headJ, 0);
+    // Effacer la pomme mangée du terrain
+    terrain.write(headI, headJ, EMPTY);
+
+    // Mettre à jour les scores
     totalScore++;
     applesEaten++;
-
-    // Mettre à jour l'affichage du score
     document.getElementById('score').textContent = `Score: ${totalScore}`;
 
-    // Gérer la génération de pommes selon le mode
+    // === Générer une nouvelle pomme selon le mode ===
     if (gameMode === 'timeAttack') {
         timeAttackManager.addApple();
 
-        // Vérifier condition de victoire
+        // Vérifier si on a atteint l'objectif (30 pommes)
         if (timeAttackManager.isVictory()) {
             document.getElementById('gameOver').textContent = 'Victoire !';
-            document.getElementById('gameOver').style.display = 'block';
-            document.getElementById('buttonContainer').style.display = 'flex';
-            cancelAnimationFrame(animationTimer);
+            endGame();
             return;
         }
 
-        // Générer une seule pomme
-        apples.push(timeAttackManager.generateOneApple(terrain));
+        // Générer une pomme immédiatement
+        timeAttackManager.generateOneApple(terrain);
     } else {
-        // Normal et Tunnels : générer 3 pommes seulement après avoir mangé 3
+        // Mode Normal et Tunnels : générer 3 pommes après en avoir mangé 3
+        // Cela crée des "vagues" de pommes pour varier le jeu
         if (applesEaten >= 3) {
-            apples = generateApples(3);
+            generateApples(3);
             applesEaten = 0;
         }
     }
 }
 
-// Fonction pour gérer Game Over
-function handleGameOver() {
-    document.getElementById('gameOver').textContent = 'Partie perdue';
+// Terminer la partie (Game Over)
+function endGame() {
     document.getElementById('gameOver').style.display = 'block';
     document.getElementById('buttonContainer').style.display = 'flex';
     cancelAnimationFrame(animationTimer);
