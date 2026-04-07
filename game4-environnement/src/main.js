@@ -21,7 +21,7 @@ const EMPTY = 0;         // Bloc vide (vert)
 const ROCK = 1;          // Rocher = obstacle (collision)
 const APPLE = 2;         // Pomme = objectif à manger
 const SNAKE_BODY = 3;    // Corps du serpent = collision
-const PORTAL = [4, 5, 6]; // Portails = téléportation (codes 4=rose, 5=bleu, 6=jaune)
+// const PORTAL = [4, 5, 6]; | Portails = téléportation (codes 4=rose, 5=bleu, 6=jaune) - Testé avec des conditions directes
 const BARRIER = 7;       // Barrière = obstacle séparant les sections (collision)
 
 // === VARIABLES GLOBALES ===

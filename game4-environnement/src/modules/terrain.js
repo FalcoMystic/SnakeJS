@@ -21,6 +21,7 @@ export default class Terrain {
 			0: '#CBE2B5',  // Vide (vert)
 			1: '#969696',  // Rocher (gris)
 			2: '#bd2323',  // Pomme (rouge)
+			// 3 = Corps du serpent : géré par le module Serpent
 			4: '#ffa9ff',  // Portail rose (TimeAttack seulement)
 			5: '#94ffff',  // Portail bleu (TimeAttack seulement)
 			6: '#ffff93',  // Portail jaune (TimeAttack seulement)
